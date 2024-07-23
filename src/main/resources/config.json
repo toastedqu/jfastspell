@@ -1,0 +1,8 @@
+{
+    "lang": "en",
+    "mode": "aggr",
+    "dictPath": "src/main/resources/fastspell_dictionaries",
+    "modelPath": "src/main/resources/lid.176.bin",
+    "similarLangsPath": "src/main/resources/similarLangs.json",
+    "hunspellCodesPath": "src/main/resources/hunspellCodes.json"
+}
