@@ -1,31 +1,35 @@
-package com.vectara;
+package com.github;
 
 import com.github.jfasttext.JFastText;
 import dumonts.hunspell.Hunspell;
-import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.security.MessageDigest;
-import java.util.*;
-import java.util.regex.*;
-import java.util.stream.Collectors;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.lang.reflect.Type;
 
-
+/**
+ * FastSpell is a class for language detection using FastText and Hunspell.
+ */
 public class FastSpell {
     // Useful constants
-    private final double THRESHOLD = 0.5;
-    private final String PREFIX = "__label__";
-    private final Pattern PUNCT_REGEX = Pattern.compile("\\p{Punct}+$|^\\p{Punct}+");
+    private static final double THRESHOLD = 0.5;
+    private static final String PREFIX = "__label__";
+    private static final Pattern PUNCT_REGEX = Pattern.compile("\\p{Punct}+$|^\\p{Punct}+");
 
     // Configuration variables
     private String lang;
     private String mode;
     private String dictPath;
+    private Type typeStrMap;
+    private Type typeArrMap;
+    private Gson gson;
     private JFastText jft;
     private Map<String, String> configs;
     private Map<String, String> hunspellCodes;
@@ -33,84 +37,43 @@ public class FastSpell {
     private Map<String, ArrayList<String>> similarLangs;
     private List<String[]> similar;
 
-
     /**
      * Constructor for FastSpell class
      */
     public FastSpell() {
-        this.configs = loadConfigs("src/main/resources/config.json");   // Load configs
-        this.lang = configs.get("lang");                                            // The default language code
-        this.mode = configs.get("mode");                                            // "aggr" for aggressive or "cons" for conservative
+        this.gson = new Gson();
+        this.typeStrMap = new TypeToken<Map<String, String>>() {}.getType();
+        this.typeArrMap = new TypeToken<Map<String, ArrayList<String>>>() {}.getType();
+        this.configs = loadJSONMap("src/main/resources/config.json", typeStrMap);       // Load configs
+        this.lang = configs.get("lang");                                                        // The default language code
+        this.mode = configs.get("mode");                                                        // "aggr" for aggressive or "cons" for conservative
         if (!(mode.equals("cons") || mode.equals("aggr"))) {
             throw new IllegalArgumentException("Unknown mode. Use 'aggr' for aggressive or 'cons' for conservative");
         }
 
-        this.dictPath = "src/main/resources/fastspell_dictionaries";                // Dictionary path
+        this.dictPath = "src/main/resources/fastspell_dictionaries";                            // Dictionary path
         this.jft = new JFastText();
-        this.jft.loadModel(configs.get("modelPath"));                               // Load FastText model
-        this.similarLangs = loadSimilarLangs();                                     // Load similar languages
-        this.hunspellCodes = loadHunspellCodes();                                   // Load Hunspell codes
-        loadHunspellDicts();                                                        // Load Hunspell dictionaries
+        this.jft.loadModel(configs.get("modelPath"));                                           // Load FastText model
+        this.similarLangs = loadJSONMap(configs.get("similarLangsPath"), typeArrMap);           // Load similar languages
+        this.hunspellCodes = loadJSONMap(configs.get("hunspellCodesPath"), typeStrMap);         // Load Hunspell codes
+        loadHunspellDicts();                                                                    // Load Hunspell dictionaries
     }
 
-
     /**
-     * Load the configuration file.
+     * Load a JSON file.
      *
-     * @param configPath The path to the configuration file.
-     * @return A map of the configuration file.
+     * @param jsonPath The path to the JSON file.
+     * @param type The type of the JSON content.
+     * @return A map of the JSON content.
      */
-    public Map loadConfigs(String configPath) {
-        Gson gson = new Gson();
-        Type type = new TypeToken<Map<String, String>>() {}.getType();
-
-        try (FileReader reader = new FileReader(configPath)) {
-            Map<String, String> map = gson.fromJson(reader, type);
-            return map;
+    public Map loadJSONMap(String jsonPath, Type type) {
+        try (FileReader reader = new FileReader(jsonPath)) {
+            return gson.fromJson(reader, type);
         } catch (IOException e) {
             e.printStackTrace();
             return null;
         }
     }
-
-
-    /**
-     * Load the similar languages file.
-     *
-     * @return A map of the similar languages file.
-     */
-    public Map loadSimilarLangs() {
-        Gson gson = new Gson();
-        Type type = new TypeToken<Map<String, ArrayList<String>>>() {}.getType();
-
-        try (FileReader reader = new FileReader(configs.get("similarLangsPath"))) {
-            Map<String, ArrayList<String>> map = gson.fromJson(reader, type);
-            return map;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-
-    /**
-     * Load the Hunspell codes file.
-     *
-     * @return A map of the Hunspell codes file.
-     */
-    public Map loadHunspellCodes() {
-        Gson gson = new Gson();
-        Type type = new TypeToken<Map<String, String>>() {}.getType();
-
-        try (FileReader reader = new FileReader(configs.get("hunspellCodesPath"))) {
-            Map<String, String> map = gson.fromJson(reader, type);
-            return map;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
 
     /**
      * Prepare a map of Hunspell spellcheckers for all similar languages that can be mistaken with the target language.
@@ -142,7 +105,6 @@ public class FastSpell {
         }
     }
 
-
     /**
      * Search for a Hunspell dictionary for a given language code.
      *
@@ -167,7 +129,6 @@ public class FastSpell {
             throw new RuntimeException(String.format("It does not exist any valid dictionary directory for %s in %s. Please, execute 'fastspell-download'.", langCode, dictPath));
         }
     }
-
 
     /**
      * Get the language of a given sentence. (THE MOST IMPORTANT METHOD)
@@ -274,7 +235,6 @@ public class FastSpell {
         return refinedPrediction;
     }
 
-
     /**
      * Remove punctuations and proper nouns from the list of tokens because Hunspell has a high error rate and focuses only on "normal" words.
      *
@@ -301,18 +261,6 @@ public class FastSpell {
         }
         return newTokens;
     }
-
-
-    // /**
-    //  * Predict the language of a given sentence. (wrapper for getLang())
-    //  *
-    //  * @param sent The sentence for which to predict the language.
-    //  * @return The language code of the sentence.
-    //  */
-    // public String predict(String sent) {
-    //     return getLang(sent);
-    // }
-
 
     /**
      * Main method for the FastSpell class.

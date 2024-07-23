@@ -1,5 +1,5 @@
 # JFastSpell
-JFastSpell is a Java wrapper of [FastSpell](https://github.com/mbanon/fastspell/).
+JFastSpell is a Java wrapper of [FastSpell](https://github.com/mbanon/fastspell/), the most performant, publicly available language detection module by 07/23/2024.
 
 I have no prior knowledge of Java. Please let me know if you have any issue.
 
@@ -34,4 +34,11 @@ bazel build //:FastSpell
 Then test it with an arbitrary input sentence:
 ```
 bazel-bin/FastSpell YOUR_SENTENCE_HERE
+```
+
+## Usage
+```java
+FastSpell fs = new FastSpell();
+String lang = fs.getLang("Hello world!");
+System.out.println(lang);
 ```
